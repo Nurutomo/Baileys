@@ -14,6 +14,7 @@ import KeyedDB from '@adiwajshing/keyed-db'
 import got, { Options, Response } from 'got'
 import { join } from 'path'
 import { IAudioMetadata } from 'music-metadata'
+import ffprobe from 'ffprobe'
 
 const platformMap = {
     'aix': 'AIX',
@@ -243,6 +244,11 @@ const extractVideoThumb = async (
             else resolve()
         })
     }) as Promise<void>
+
+/** Extracts media metadata using FFprobe */
+export const extractMediaMetadata = (file: string, ffprobePath: string = 'ffprobe') => {
+    return ffprobe(file, { path: ffprobePath })
+}
 
 export const compressImage = async (bufferOrFilePath: Buffer | string) => {
     const jimp = await Jimp.read(bufferOrFilePath as any)

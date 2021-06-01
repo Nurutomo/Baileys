@@ -12,7 +12,7 @@ import {
     WATextMessage,
     WAMessageContent, WAMetric, WAFlag, WAMessage, BaileysError, WA_MESSAGE_STATUS_TYPE, WAMessageProto, MediaConnInfo, MessageTypeProto, URL_REGEX, WAUrlInfo, WA_DEFAULT_EPHEMERAL, WAMediaUpload
 } from './Constants'
-import { isGroupID, generateMessageID, extensionForMediaMessage, whatsappID, unixTimestampSeconds, getAudioDuration, newMessagesDB, encryptedStream, decryptMediaMessageBuffer, generateThumbnail  } from './Utils'
+import { isGroupID, generateMessageID, extensionForMediaMessage, whatsappID, unixTimestampSeconds, getAudioDuration, newMessagesDB, encryptedStream, decryptMediaMessageBuffer, generateThumbnail, extractMediaMetadata  } from './Utils'
 import { Mutex } from './Mutex'
 import { Readable } from 'stream'
 
@@ -148,7 +148,8 @@ export class WAConnection extends Base {
         }
         const requiresDurationComputation = mediaType === MessageType.audio && !options.duration
         const requiresThumbnailComputation = (mediaType === MessageType.image || mediaType === MessageType.video) && !('thumbnail' in options)
-        const requiresOriginalForSomeProcessing = requiresDurationComputation || requiresThumbnailComputation
+        const requiresResolutionComputation = (mediaType === MessageType.image || mediaType === MessageType.video) && !('width' in options && 'height' in options)
+        const requiresOriginalForSomeProcessing = requiresDurationComputation || requiresThumbnailComputation || requiresResolutionComputation
         const {
             mediaKey,
             encBodyPath,
@@ -173,6 +174,19 @@ export class WAConnection extends Base {
                 options.duration = await getAudioDuration(bodyPath)
             } catch (error) {
                 this.logger.debug ({ error }, 'failed to obtain audio duration: ' + error.message)
+            }
+        }
+        if (requiresResolutionComputation) {
+            try {
+                const metadata = await extractMediaMetadata(bodyPath)
+                const A = metadata.streams.find(stream => stream.codec_type === 'audio')
+                const V = metadata.streams.find(stream => stream.codec_type === 'images' || stream.codec_type === 'video')
+                if (A?.duration && !options.duration) options.duration = Math.floor(A.duration)
+                if (V?.width && !options.width) options.width = Math.floor(V.width)
+                if (V?.height && !options.height) options.height = Math.floor(V.height)
+            } catch (error) {
+                this.logger.debug ({ error }, 'failed to obtain media resolution: ' + error.message)
+
             }
         }
         // send a query JSON to obtain the url & auth token to upload our media
@@ -224,6 +238,8 @@ export class WAConnection extends Base {
                     fileSha256: fileSha256,
                     fileLength: fileLength,
                     seconds: options.duration,
+                    width: options.width,
+                    height: options.height,
                     fileName: options.filename || 'file',
                     gifPlayback: isGIF || undefined,
                     caption: options.caption,

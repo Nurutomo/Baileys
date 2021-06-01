@@ -371,6 +371,10 @@ export interface MessageOptions {
     detectLinks?: boolean
     /** Optionally specify the duration of the media (audio/video) in seconds */
     duration?: number
+    /** Optionally specify the width of the media (image/video) in pixels */
+    width?: number
+    /** Optionally specify the height of the media (image/video) in pixels */
+    height?: number
     /** Fetches new media options for every media file */
     forceNewMediaOptions?: boolean
     /** Wait for the message to be sent to the server (default true) */
