@@ -17,6 +17,7 @@ export type WAMessage = proto.WebMessageInfo
 export type WAMessageContent = proto.IMessage
 export type WAContactMessage = proto.ContactMessage
 export type WAContactsArrayMessage = proto.ContactsArrayMessage
+export type WAGroupInviteMessage = proto.GroupInviteMessage
 export type WAMessageKey = proto.IMessageKey
 export type WATextMessage = proto.ExtendedTextMessage
 export type WAContextInfo = proto.IContextInfo
@@ -28,6 +29,33 @@ export type WAInitResponse = {
     ref: string
     ttl: number
     status: 200
+}
+
+export interface WABusinessProfile {
+    description: string
+    email: string
+    business_hours: WABusinessHours
+    website: string[]
+    categories: WABusinessCategories[]
+    wid?: string
+}
+
+export type WABusinessCategories = {
+    id: string
+    localized_display_name:  string
+}
+
+export type WABusinessHours = {
+    timezone: string
+    config?:  WABusinessHoursConfig[]
+    business_config?: WABusinessHoursConfig[]
+}
+
+export type WABusinessHoursConfig = {
+    day_of_week: string
+    mode: string
+    open_time?: number
+    close_time?: number
 }
 
 export interface WALocationMessage {
@@ -298,6 +326,7 @@ export enum MessageType {
     extendedText = 'extendedTextMessage',
     contact = 'contactMessage',
     contactsArray = 'contactsArrayMessage',
+    groupInviteMessage = 'groupInviteMessage',
     location = 'locationMessage',
     liveLocation = 'liveLocationMessage',
 
