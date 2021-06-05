@@ -167,7 +167,7 @@ export class WAConnection extends Base {
             .replace(/\=+$/, '')
         )
         if(requiresThumbnailComputation) {
-            await generateThumbnail(bodyPath, mediaType, options)
+            await generateThumbnail(bodyPath, mediaType, options, this.connectOptions.ffmpegPath)
         }
         if (requiresDurationComputation) {
             try {
@@ -178,7 +178,7 @@ export class WAConnection extends Base {
         }
         if (requiresResolutionComputation) {
             try {
-                const metadata = await extractMediaMetadata(bodyPath)
+                const metadata = await extractMediaMetadata(bodyPath, this.connectOptions.ffprobePath)
                 const A = metadata.streams.find(stream => stream.codec_type === 'audio')
                 const V = metadata.streams.find(stream => stream.codec_type === 'images' || stream.codec_type === 'video')
                 if (A?.duration && !options.duration) options.duration = Math.floor(A.duration)

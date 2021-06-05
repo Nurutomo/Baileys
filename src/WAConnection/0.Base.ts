@@ -28,13 +28,13 @@ import { STATUS_CODES } from 'http'
 import { Agent } from 'https'
 import pino from 'pino'
 
-const logger = pino({ prettyPrint: { levelFirst: true, ignore: 'hostname', translateTime: true },  prettifier: require('pino-pretty') })
+const logger = pino({ prettyPrint: { levelFirst: true, ignore: 'hostname', translateTime: true }, prettifier: require('pino-pretty') })
 
 export class WAConnection extends EventEmitter {
     /** The version of WhatsApp Web we're telling the servers we are */
     version: [number, number, number] = [2, 2112, 10]
     /** The Browser we're telling the WhatsApp Web servers we are */
-    browserDescription: [string, string, string] = Utils.Browsers.baileys ('Chrome')
+    browserDescription: [string, string, string] = Utils.Browsers.baileys('Chrome')
     /** Metadata like WhatsApp id, name set on WhatsApp etc. */
     user: WAUser
     /** Should requests be queued when the connection breaks in between; if 0, then an error will be thrown */
@@ -47,25 +47,27 @@ export class WAConnection extends EventEmitter {
         connectCooldownMs: 4000,
         phoneResponseTime: 15_000,
         alwaysUseTakeover: true,
-        queryChatsTillReceived: true
+        queryChatsTillReceived: true,
+        ffmpegPath: 'ffmpeg',
+        ffprobePath: 'ffprobe'
     }
     /** When to auto-reconnect */
-    autoReconnect = ReconnectMode.onConnectionLost 
+    autoReconnect = ReconnectMode.onConnectionLost
     /** Whether the phone is connected */
     phoneConnected: boolean = false
     /** key to use to order chats */
     chatOrderingKey = Utils.waChatKey(false)
 
-    logger = logger.child ({ class: 'Baileys' })
+    logger = logger.child({ class: 'Baileys' })
 
     /** log messages */
-    shouldLogMessages = false 
+    shouldLogMessages = false
     messageLog: { tag: string, json: string, fromMe: boolean, binaryTags?: any[] }[] = []
 
     maxCachedMessages = 50
 
     lastChatsReceived: Date
-    chats = new KeyedDB (Utils.waChatKey(false), value => value.jid)
+    chats = new KeyedDB(Utils.waChatKey(false), value => value.jid)
     contacts: { [k: string]: WAContact } = {}
     blocklist: string[] = []
 
@@ -82,16 +84,16 @@ export class WAConnection extends EventEmitter {
     protected phoneCheckInterval
     protected phoneCheckListeners = 0
 
-    protected referenceDate = new Date () // used for generating tags
+    protected referenceDate = new Date() // used for generating tags
     protected lastSeen: Date = null // last keep alive received
     protected initTimeout: NodeJS.Timeout
 
     protected lastDisconnectTime: Date = null
-    protected lastDisconnectReason: DisconnectReason 
+    protected lastDisconnectReason: DisconnectReason
 
     protected mediaConn: MediaConnInfo
     protected connectionDebounceTimeout = Utils.debouncedTimeout(
-        1000, 
+        1000,
         () => this.state === 'connecting' && this.endConnection(DisconnectReason.timedOut)
     )
     // timeout to know when we're done recieving messages
@@ -105,18 +107,18 @@ export class WAConnection extends EventEmitter {
     async connect() {
         return null
     }
-    async unexpectedDisconnect (error: DisconnectReason) {
+    async unexpectedDisconnect(error: DisconnectReason) {
         if (this.state === 'open') {
-            const willReconnect = 
-            (this.autoReconnect === ReconnectMode.onAllErrors || 
-            (this.autoReconnect === ReconnectMode.onConnectionLost && error !== DisconnectReason.replaced)) &&
-            error !== DisconnectReason.invalidSession // do not reconnect if credentials have been invalidated
-        
+            const willReconnect =
+                (this.autoReconnect === ReconnectMode.onAllErrors ||
+                    (this.autoReconnect === ReconnectMode.onConnectionLost && error !== DisconnectReason.replaced)) &&
+                error !== DisconnectReason.invalidSession // do not reconnect if credentials have been invalidated
+
             this.closeInternal(error, willReconnect)
             willReconnect && (
                 this.connect()
-                .catch(err => {}) // prevent unhandled exeception
-            ) 
+                    .catch(err => { }) // prevent unhandled exeception
+            )
         } else {
             this.endConnection(error)
         }
@@ -136,13 +138,13 @@ export class WAConnection extends EventEmitter {
         }
     }
     /** Can you login to WA without scanning the QR */
-    canLogin () {
+    canLogin() {
         return !!this.authInfo?.encKey && !!this.authInfo?.macKey
     }
     /** Clear authentication info so a new connection can be created */
-    clearAuthInfo () {
+    clearAuthInfo() {
         this.authInfo = null
-        return this 
+        return this
     }
     /**
      * Load in the authentication credentials
@@ -150,7 +152,7 @@ export class WAConnection extends EventEmitter {
      */
     loadAuthInfo(authInfo: AnyAuthenticationCredentials | string) {
         if (!authInfo) throw new Error('given authInfo is null')
-        
+
         if (typeof authInfo === 'string') {
             this.logger.info(`loading authentication credentials from ${authInfo}`)
             const file = fs.readFileSync(authInfo, { encoding: 'utf-8' }) // load a closed session back if it exists
@@ -162,10 +164,10 @@ export class WAConnection extends EventEmitter {
                 serverToken: authInfo.serverToken,
                 clientToken: authInfo.clientToken,
                 encKey: Buffer.isBuffer(authInfo.encKey) ? authInfo.encKey : Buffer.from(authInfo.encKey, 'base64'),
-                macKey: Buffer.isBuffer(authInfo.macKey) ? authInfo.macKey : Buffer.from(authInfo.macKey, 'base64'), 
+                macKey: Buffer.isBuffer(authInfo.macKey) ? authInfo.macKey : Buffer.from(authInfo.macKey, 'base64'),
             }
         } else {
-            const secretBundle: {encKey: string, macKey: string} = typeof authInfo.WASecretBundle === 'string' ? JSON.parse (authInfo.WASecretBundle): authInfo.WASecretBundle
+            const secretBundle: { encKey: string, macKey: string } = typeof authInfo.WASecretBundle === 'string' ? JSON.parse(authInfo.WASecretBundle) : authInfo.WASecretBundle
             this.authInfo = {
                 clientID: authInfo.WABrowserId.replace(/\"/g, ''),
                 serverToken: authInfo.WAToken2.replace(/\"/g, ''),
@@ -173,7 +175,7 @@ export class WAConnection extends EventEmitter {
                 encKey: Buffer.from(secretBundle.encKey, 'base64'), // decode from base64
                 macKey: Buffer.from(secretBundle.macKey, 'base64'), // decode from base64
             }
-        }   
+        }
         return this
     }
     /**
@@ -195,22 +197,22 @@ export class WAConnection extends EventEmitter {
                 (resolve, reject) => {
                     onRecv = resolve
                     onErr = ({ reason, status }) => reject(new BaileysError(reason, { status }))
-                    this.on (`TAG:${tag}`, onRecv)
-                    this.on ('ws-close', onErr) // if the socket closes, you'll never receive the message
+                    this.on(`TAG:${tag}`, onRecv)
+                    this.on('ws-close', onErr) // if the socket closes, you'll never receive the message
                 },
             )
             return result as any
         } finally {
             requiresPhoneConnection && this.clearPhoneCheckInterval()
-            this.off (`TAG:${tag}`, onRecv)
-            this.off (`ws-close`, onErr)
+            this.off(`TAG:${tag}`, onRecv)
+            this.off(`ws-close`, onErr)
             cancelPhoneChecker && cancelPhoneChecker()
         }
     }
     /** Generic function for action, set queries */
-    async setQuery (nodes: WANode[], binaryTags: WATag = [WAMetric.group, WAFlag.ignore], tag?: string) {
-        const json = ['action', {epoch: this.msgCount.toString(), type: 'set'}, nodes]
-        const result = await this.query({ json, binaryTags, tag, expect200: true, requiresPhoneConnection: true }) as Promise<{status: number}>
+    async setQuery(nodes: WANode[], binaryTags: WATag = [WAMetric.group, WAFlag.ignore], tag?: string) {
+        const json = ['action', { epoch: this.msgCount.toString(), type: 'set' }, nodes]
+        const result = await this.query({ json, binaryTags, tag, expect200: true, requiresPhoneConnection: true }) as Promise<{ status: number }>
         return result
     }
     /**
@@ -221,21 +223,21 @@ export class WAConnection extends EventEmitter {
      * @param tag the tag to attach to the message
      */
     async query(q: WAQuery): Promise<any> {
-        let {json, binaryTags, tag, timeoutMs, expect200, waitForOpen, longTag, requiresPhoneConnection, startDebouncedTimeout, maxRetries} = q
+        let { json, binaryTags, tag, timeoutMs, expect200, waitForOpen, longTag, requiresPhoneConnection, startDebouncedTimeout, maxRetries } = q
         requiresPhoneConnection = requiresPhoneConnection !== false
         waitForOpen = waitForOpen !== false
         let triesLeft = maxRetries || 2
         tag = tag || this.generateMessageTag(longTag)
-        
+
         while (triesLeft >= 0) {
             if (waitForOpen) await this.waitForConnection()
 
             const promise = this.waitForMessage(tag, requiresPhoneConnection, timeoutMs)
 
             if (this.logger.level === 'trace') {
-                this.logger.trace ({ fromMe: true },`${tag},${JSON.stringify(json)}`)
+                this.logger.trace({ fromMe: true }, `${tag},${JSON.stringify(json)}`)
             }
-           
+
             if (binaryTags) tag = await this.sendBinary(json as WANode, binaryTags, tag)
             else tag = await this.sendJSON(json, tag)
 
@@ -243,9 +245,9 @@ export class WAConnection extends EventEmitter {
                 const response = await promise
                 if (expect200 && response.status && Math.floor(+response.status / 100) !== 2) {
                     const message = STATUS_CODES[response.status] || 'unknown'
-                    throw new BaileysError (
-                        `Unexpected status in '${json[0] || 'query'}': ${STATUS_CODES[response.status]}(${response.status})`, 
-                        {query: json, message, status: response.status}
+                    throw new BaileysError(
+                        `Unexpected status in '${json[0] || 'query'}': ${STATUS_CODES[response.status]}(${response.status})`,
+                        { query: json, message, status: response.status }
                     )
                 }
                 if (startDebouncedTimeout) {
@@ -258,13 +260,13 @@ export class WAConnection extends EventEmitter {
                 }
                 // read here: http://getstatuscode.com/599
                 if (error.status === 599) {
-                    this.unexpectedDisconnect (DisconnectReason.badSession)
+                    this.unexpectedDisconnect(DisconnectReason.badSession)
                 } else if (
-                    (error.message === 'close' || error.message === 'lost') && 
-                    waitForOpen && 
+                    (error.message === 'close' || error.message === 'lost') &&
+                    waitForOpen &&
                     this.state !== 'close' &&
                     (this.pendingRequestTimeoutMs === null ||
-                    this.pendingRequestTimeoutMs > 0)) {
+                        this.pendingRequestTimeoutMs > 0)) {
                     // nothing here
                 } else throw error
 
@@ -276,7 +278,7 @@ export class WAConnection extends EventEmitter {
     protected exitQueryIfResponseNotExpected(tag: string, cancel: ({ reason, status }) => void) {
         let timeout: NodeJS.Timeout
         const listener = ({ connected }) => {
-            if(connected) {
+            if (connected) {
                 timeout = setTimeout(() => {
                     this.logger.info({ tag }, `cancelling wait for message as a response is no longer expected from the phone`)
                     cancel({ reason: 'Not expecting a response', status: 422 })
@@ -291,35 +293,35 @@ export class WAConnection extends EventEmitter {
         }
     }
     /** interval is started when a query takes too long to respond */
-    protected startPhoneCheckInterval () {
+    protected startPhoneCheckInterval() {
         this.phoneCheckListeners += 1
         if (!this.phoneCheckInterval) {
             // if its been a long time and we haven't heard back from WA, send a ping
-            this.phoneCheckInterval = setInterval (() => {
+            this.phoneCheckInterval = setInterval(() => {
                 if (!this.conn) return  // if disconnected, then don't do anything
 
                 this.logger.info('checking phone connection...')
-                this.sendAdminTest ()
-                if(this.phoneConnected !== false) {
+                this.sendAdminTest()
+                if (this.phoneConnected !== false) {
                     this.phoneConnected = false
-                    this.emit ('connection-phone-change', { connected: false })
+                    this.emit('connection-phone-change', { connected: false })
                 }
             }, this.connectOptions.phoneResponseTime)
         }
-        
+
     }
-    protected clearPhoneCheckInterval () {
+    protected clearPhoneCheckInterval() {
         this.phoneCheckListeners -= 1
         if (this.phoneCheckListeners <= 0) {
-            this.phoneCheckInterval && clearInterval (this.phoneCheckInterval)
+            this.phoneCheckInterval && clearInterval(this.phoneCheckInterval)
             this.phoneCheckInterval = undefined
             this.phoneCheckListeners = 0
         }
-        
+
     }
     /** checks for phone connection */
-    protected async sendAdminTest () {
-        return this.sendJSON (['admin', 'test'])
+    protected async sendAdminTest() {
+        return this.sendJSON(['admin', 'test'])
     }
     /**
      * Send a binary encoded message
@@ -335,7 +337,7 @@ export class WAConnection extends EventEmitter {
         const sign = Utils.hmacSign(buff, this.authInfo.macKey) // sign the message using HMAC and our macKey
         tag = tag || this.generateMessageTag(longTag)
 
-        if (this.shouldLogMessages) this.messageLog.push ({ tag, json: JSON.stringify(json), fromMe: true, binaryTags: tags })
+        if (this.shouldLogMessages) this.messageLog.push({ tag, json: JSON.stringify(json), fromMe: true, binaryTags: tags })
 
         buff = Buffer.concat([
             Buffer.from(tag + ','), // generate & prefix the message tag
@@ -354,7 +356,7 @@ export class WAConnection extends EventEmitter {
      */
     protected async sendJSON(json: any[] | WANode, tag: string = null, longTag: boolean = false) {
         tag = tag || this.generateMessageTag(longTag)
-        if (this.shouldLogMessages) this.messageLog.push ({ tag, json: JSON.stringify(json), fromMe: true })
+        if (this.shouldLogMessages) this.messageLog.push({ tag, json: JSON.stringify(json), fromMe: true })
         await this.send(`${tag},${JSON.stringify(json)}`)
         return tag
     }
@@ -362,7 +364,7 @@ export class WAConnection extends EventEmitter {
     protected async send(m) {
         this.conn.send(m)
     }
-    protected async waitForConnection () {
+    protected async waitForConnection() {
         if (this.state === 'open') return
 
         let onOpen: () => void
@@ -372,30 +374,30 @@ export class WAConnection extends EventEmitter {
             throw new BaileysError(DisconnectReason.close, { status: 428 })
         }
         await (
-            Utils.promiseTimeout (
-                this.pendingRequestTimeoutMs, 
+            Utils.promiseTimeout(
+                this.pendingRequestTimeoutMs,
                 (resolve, reject) => {
                     onClose = ({ reason }) => {
                         if (reason === DisconnectReason.invalidSession || reason === DisconnectReason.intentional) {
-                            reject (new Error(reason))
+                            reject(new Error(reason))
                         }
                     }
                     onOpen = resolve
-                    this.on ('close', onClose)
-                    this.on ('open', onOpen)
+                    this.on('close', onClose)
+                    this.on('open', onOpen)
                 }
             )
-            .finally(() => {
-                this.off ('open', onOpen)
-                this.off ('close', onClose)
-            })
+                .finally(() => {
+                    this.off('open', onOpen)
+                    this.off('close', onClose)
+                })
         )
     }
     /**
      * Disconnect from the phone. Your auth credentials become invalid after sending a disconnect request.
      * @see close() if you just want to close the connection
      */
-    async logout () {
+    async logout() {
         this.authInfo = null
         if (this.state === 'open') {
             //throw new Error("You're not even connected, you can't log out")
@@ -407,36 +409,36 @@ export class WAConnection extends EventEmitter {
         this.close()
     }
     /** Close the connection to WhatsApp Web */
-    close () {
-        this.closeInternal (DisconnectReason.intentional)
+    close() {
+        this.closeInternal(DisconnectReason.intentional)
     }
-    protected closeInternal (reason?: DisconnectReason, isReconnecting: boolean=false) {
-        this.logger.info (`closed connection, reason ${reason}${isReconnecting ? ', reconnecting in a few seconds...' : ''}`)  
+    protected closeInternal(reason?: DisconnectReason, isReconnecting: boolean = false) {
+        this.logger.info(`closed connection, reason ${reason}${isReconnecting ? ', reconnecting in a few seconds...' : ''}`)
 
         this.state = 'close'
         this.phoneConnected = false
         this.lastDisconnectReason = reason
-        this.lastDisconnectTime = new Date ()
+        this.lastDisconnectTime = new Date()
 
         this.endConnection(reason)
         // reconnecting if the timeout is active for the reconnect loop
-        this.emit ('close', { reason, isReconnecting })
+        this.emit('close', { reason, isReconnecting })
     }
-    protected endConnection (reason: DisconnectReason) {
-        this.conn?.removeAllListeners ('close')
-        this.conn?.removeAllListeners ('error')
-        this.conn?.removeAllListeners ('open')
-        this.conn?.removeAllListeners ('message')
+    protected endConnection(reason: DisconnectReason) {
+        this.conn?.removeAllListeners('close')
+        this.conn?.removeAllListeners('error')
+        this.conn?.removeAllListeners('open')
+        this.conn?.removeAllListeners('message')
 
-        this.initTimeout && clearTimeout (this.initTimeout)
+        this.initTimeout && clearTimeout(this.initTimeout)
         this.connectionDebounceTimeout.cancel()
         this.messagesDebounceTimeout.cancel()
         this.chatsDebounceTimeout.cancel()
         this.keepAliveReq && clearInterval(this.keepAliveReq)
         this.phoneCheckListeners = 0
-        this.clearPhoneCheckInterval ()
-        
-        this.emit ('ws-close', { reason })
+        this.clearPhoneCheckInterval()
+
+        this.emit('ws-close', { reason })
 
         try {
             this.conn?.close()
@@ -452,11 +454,11 @@ export class WAConnection extends EventEmitter {
      * Does a fetch request with the configuration of the connection
      */
     protected fetchRequest = (
-        endpoint: string, 
-        method: Method = 'GET', 
-        body?: any, 
-        agent?: Agent, 
-        headers?: {[k: string]: string}, 
+        endpoint: string,
+        method: Method = 'GET',
+        body?: any,
+        agent?: Agent,
+        headers?: { [k: string]: string },
         followRedirect = true
     ) => (
         got(endpoint, {
@@ -467,9 +469,9 @@ export class WAConnection extends EventEmitter {
             agent: { https: agent || this.connectOptions.fetchAgent }
         })
     )
-    generateMessageTag (longTag: boolean = false) {
+    generateMessageTag(longTag: boolean = false) {
         const seconds = Utils.unixTimestampSeconds(this.referenceDate)
-        const tag = `${longTag ? seconds : (seconds%1000)}.--${this.msgCount}`
+        const tag = `${longTag ? seconds : (seconds % 1000)}.--${this.msgCount}`
         this.msgCount += 1 // increment message count, it makes the 'epoch' field when sending binary messages
         return tag
     }

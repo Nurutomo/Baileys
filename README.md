@@ -109,7 +109,11 @@ conn.connectOptions = {
     /** agent used for fetch requests -- uploading/downloading media */
     fetchAgent?: Agent = undefined,
     /** always uses takeover for connecting */
-    alwaysUseTakeover: true
+    alwaysUseTakeover: true,
+    /** FFmpeg Path */
+    ffmpegPath?: 'ffmpeg',
+    /** FFprobe Path */
+    ffprobePath?: 'ffprobe'
 } as WAConnectOptions
 ```
 

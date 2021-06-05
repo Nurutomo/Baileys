@@ -2,9 +2,9 @@ import * as Crypto from 'crypto'
 import { Readable, Transform } from 'stream'
 import HKDF from 'futoin-hkdf'
 import Jimp from 'jimp'
-import {createReadStream, createWriteStream, promises as fs, WriteStream} from 'fs'
-import { exec } from 'child_process'
-import {platform, release, tmpdir} from 'os'
+import { createReadStream, createWriteStream, promises as fs, WriteStream } from 'fs'
+import { spawn } from 'child_process'
+import { platform, release, tmpdir } from 'os'
 import HttpsProxyAgent from 'https-proxy-agent'
 import { URL } from 'url'
 import { Agent } from 'https'
@@ -27,30 +27,30 @@ export const Browsers = {
     macOS: browser => ['Mac OS', browser, '10.15.3'] as [string, string, string],
     baileys: browser => ['Baileys', browser, '3.0'] as [string, string, string],
     /** The appropriate browser based on your OS & release */
-    appropriate: browser => [ platformMap [platform()] || 'Ubuntu', browser, release() ] as [string, string, string]
+    appropriate: browser => [platformMap[platform()] || 'Ubuntu', browser, release()] as [string, string, string]
 }
 export const toNumber = (t: Long | number) => (t['low'] || t) as number
 export const waChatKey = (pin: boolean) => ({
     key: (c: WAChat) => (pin ? (c.pin ? '1' : '0') : '') + (c.archive === 'true' ? '0' : '1') + c.t.toString(16).padStart(8, '0') + c.jid,
-    compare: (k1: string, k2: string) => k2.localeCompare (k1)
+    compare: (k1: string, k2: string) => k2.localeCompare(k1)
 })
 export const waMessageKey = {
     key: (m: WAMessage) => (5000 + (m['epoch'] || 0)).toString(16).padStart(6, '0') + toNumber(m.messageTimestamp).toString(16).padStart(8, '0'),
-    compare: (k1: string, k2: string) => k1.localeCompare (k2)
+    compare: (k1: string, k2: string) => k1.localeCompare(k2)
 }
-export const WA_MESSAGE_ID = (m: WAMessage) => GET_MESSAGE_ID (m.key)
+export const WA_MESSAGE_ID = (m: WAMessage) => GET_MESSAGE_ID(m.key)
 export const GET_MESSAGE_ID = (key: WAMessageKey) => `${key.id}|${key.fromMe ? 1 : 0}`
 
-export const whatsappID = (jid: string) => jid?.replace ('@c.us', '@s.whatsapp.net')
-export const isGroupID = (jid: string) => jid?.endsWith ('@g.us')
+export const whatsappID = (jid: string) => jid?.replace('@c.us', '@s.whatsapp.net')
+export const isGroupID = (jid: string) => jid?.endsWith('@g.us')
 
 export const newMessagesDB = (messages: WAMessage[] = []) => {
     const db = new KeyedDB(waMessageKey, WA_MESSAGE_ID)
     messages.forEach(m => !db.get(WA_MESSAGE_ID(m)) && db.insert(m))
     return db
-} 
+}
 
-export function shallowChanges <T> (old: T, current: T, {lookForDeletedKeys}: {lookForDeletedKeys: boolean}): Partial<T> {
+export function shallowChanges<T>(old: T, current: T, { lookForDeletedKeys }: { lookForDeletedKeys: boolean }): Partial<T> {
     let changes: Partial<T> = {}
     for (let key in current) {
         if (old[key] !== current[key]) {
@@ -103,7 +103,7 @@ export function randomBytes(length) {
     return Crypto.randomBytes(length)
 }
 /** unix timestamp of a date in seconds */
-export const unixTimestampSeconds = (date: Date = new Date()) => Math.floor(date.getTime()/1000)
+export const unixTimestampSeconds = (date: Date = new Date()) => Math.floor(date.getTime() / 1000)
 
 export type DebouncedTimeout = ReturnType<typeof debouncedTimeout>
 export const debouncedTimeout = (intervalMs: number = 1000, task: () => void = undefined) => {
@@ -124,7 +124,7 @@ export const debouncedTimeout = (intervalMs: number = 1000, task: () => void = u
     }
 }
 
-export const delay = (ms: number) => delayCancellable (ms).delay
+export const delay = (ms: number) => delayCancellable(ms).delay
 export const delayCancellable = (ms: number) => {
     const stack = new Error().stack
     let timeout: NodeJS.Timeout
@@ -134,24 +134,24 @@ export const delayCancellable = (ms: number) => {
         reject = _reject
     })
     const cancel = () => {
-        clearTimeout (timeout)
-        reject (CancelledError(stack))
+        clearTimeout(timeout)
+        reject(CancelledError(stack))
     }
     return { delay, cancel }
 }
-export async function promiseTimeout<T>(ms: number, promise: (resolve: (v?: T)=>void, reject: (error) => void) => void) {
-    if (!ms) return new Promise (promise)
+export async function promiseTimeout<T>(ms: number, promise: (resolve: (v?: T) => void, reject: (error) => void) => void) {
+    if (!ms) return new Promise(promise)
     const stack = new Error().stack
     // Create a promise that rejects in <ms> milliseconds
-    let {delay, cancel} = delayCancellable (ms) 
-    const p = new Promise ((resolve, reject) => {
+    let { delay, cancel } = delayCancellable(ms)
+    const p = new Promise((resolve, reject) => {
         delay
-        .then(() => reject(TimedOutError(stack)))
-        .catch (err => reject(err)) 
-        
-        promise (resolve, reject)
+            .then(() => reject(TimedOutError(stack)))
+            .catch(err => reject(err))
+
+        promise(resolve, reject)
     })
-    .finally (cancel)
+        .finally(cancel)
     return p as Promise<T>
 }
 // whatsapp requires a message tag for every message, we just use the timestamp as one
@@ -168,13 +168,13 @@ export function generateClientID() {
 export function generateMessageID() {
     return '3EB0' + randomBytes(4).toString('hex').toUpperCase()
 }
-export function decryptWA (message: string | Buffer, macKey: Buffer, encKey: Buffer, decoder: Decoder, fromMe: boolean=false): [string, Object, [number, number]?] {
+export function decryptWA(message: string | Buffer, macKey: Buffer, encKey: Buffer, decoder: Decoder, fromMe: boolean = false): [string, Object, [number, number]?] {
     let commaIndex = message.indexOf(',') // all whatsapp messages have a tag and a comma, followed by the actual message
-    if (commaIndex < 0) throw new BaileysError ('invalid message', { message }) // if there was no comma, then this message must be not be valid
-    
-    if (message[commaIndex+1] === ',') commaIndex += 1
-    let data = message.slice(commaIndex+1, message.length)
-    
+    if (commaIndex < 0) throw new BaileysError('invalid message', { message }) // if there was no comma, then this message must be not be valid
+
+    if (message[commaIndex + 1] === ',') commaIndex += 1
+    let data = message.slice(commaIndex + 1, message.length)
+
     // get the message tag.
     // If a query was done, the server will respond with the same message tag we sent the query with
     const messageTag: string = message.slice(0, commaIndex).toString()
@@ -185,7 +185,7 @@ export function decryptWA (message: string | Buffer, macKey: Buffer, encKey: Buf
             json = JSON.parse(data) // parse the JSON
         } else {
             if (!macKey || !encKey) {
-                throw new BaileysError ('recieved encrypted buffer when auth creds unavailable', { message })
+                throw new BaileysError('recieved encrypted buffer when auth creds unavailable', { message })
             }
             /* 
                 If the data recieved was not a JSON, then it must be an encrypted message.
@@ -195,17 +195,17 @@ export function decryptWA (message: string | Buffer, macKey: Buffer, encKey: Buf
                 tags = [data[0], data[1]]
                 data = data.slice(2, data.length)
             }
-            
+
             const checksum = data.slice(0, 32) // the first 32 bytes of the buffer are the HMAC sign of the message
             data = data.slice(32, data.length) // the actual message
             const computedChecksum = hmacSign(data, macKey) // compute the sign of the message we recieved using our macKey
-            
+
             if (checksum.equals(computedChecksum)) {
                 // the checksum the server sent, must match the one we computed for the message to be valid
                 const decrypted = aesDecrypt(data, encKey) // decrypt using AES
                 json = decoder.read(decrypted) // decode the binary message into a JSON array
             } else {
-                throw new BaileysError ('checksum failed', {
+                throw new BaileysError('checksum failed', {
                     received: checksum.toString('hex'),
                     computed: computedChecksum.toString('hex'),
                     data: data.slice(0, 80).toString(),
@@ -213,14 +213,14 @@ export function decryptWA (message: string | Buffer, macKey: Buffer, encKey: Buf
                     message: message.slice(0, 80).toString()
                 })
             }
-        }   
+        }
     }
     return [messageTag, json, tags]
 }
 /** generates all the keys required to encrypt/decrypt & sign a media message */
 export function getMediaKeys(buffer, mediaType: MessageType) {
     if (typeof buffer === 'string') {
-        buffer = Buffer.from (buffer.replace('data:;base64,', ''), 'base64')
+        buffer = Buffer.from(buffer.replace('data:;base64,', ''), 'base64')
     }
     // expand using HKDF to 112 bytes, also pass in the relevant app info
     const expandedMediaKey = hkdf(buffer, 112, HKDFInfoKeys[mediaType])
@@ -236,13 +236,20 @@ const extractVideoThumb = async (
     destPath: string,
     time: string,
     size: { width: number; height: number },
+    ffmpegPath: string = 'ffmpeg',
 ) =>
     new Promise((resolve, reject) => {
-        const cmd = `ffmpeg -ss ${time} -i ${path} -y -s ${size.width}x${size.height} -vframes 1 -f image2 ${destPath}`
-        exec(cmd, (err) => {
-            if (err) reject(err)
-            else resolve()
-        })
+        spawn(ffmpegPath, [
+            '-y',
+            '-ss', time,
+            '-i', path,
+            '-s', `${size.width}x${size.height}`,
+            '-vframes', '1',
+            '-f', 'image2',
+            destPath
+        ])
+            .on('error', reject)
+            .on('close', resolve)
     }) as Promise<void>
 
 /** Extracts media metadata using FFprobe */
@@ -256,24 +263,24 @@ export const compressImage = async (bufferOrFilePath: Buffer | string) => {
     return result
 }
 export const generateProfilePicture = async (buffer: Buffer) => {
-    const jimp = await Jimp.read (buffer)
-    const min = Math.min(jimp.getWidth (), jimp.getHeight ())
-    const cropped = jimp.crop (0, 0, min, min)
+    const jimp = await Jimp.read(buffer)
+    const min = Math.min(jimp.getWidth(), jimp.getHeight())
+    const cropped = jimp.crop(0, 0, min, min)
     return {
-        img: await cropped.resize(640, 640).getBufferAsync (Jimp.MIME_JPEG),
-        preview: await cropped.resize(96, 96).getBufferAsync (Jimp.MIME_JPEG)
+        img: await cropped.resize(640, 640).getBufferAsync(Jimp.MIME_JPEG),
+        preview: await cropped.resize(96, 96).getBufferAsync(Jimp.MIME_JPEG)
     }
 }
 export const ProxyAgent = (host: string | URL) => HttpsProxyAgent(host) as any as Agent
 /** gets the SHA256 of the given media message */
 export const mediaMessageSHA256B64 = (message: WAMessageContent) => {
     const media = Object.values(message)[0] as WAGenericMediaMessage
-    return media?.fileSha256 && Buffer.from(media.fileSha256).toString ('base64')
+    return media?.fileSha256 && Buffer.from(media.fileSha256).toString('base64')
 }
-export async function getAudioDuration (buffer: Buffer | string) {
-    const musicMetadata = await import ('music-metadata')
+export async function getAudioDuration(buffer: Buffer | string) {
+    const musicMetadata = await import('music-metadata')
     let metadata: IAudioMetadata
-    if(Buffer.isBuffer(buffer)) {
+    if (Buffer.isBuffer(buffer)) {
         metadata = await musicMetadata.parseBuffer(buffer, null, { duration: true })
     } else {
         const rStream = createReadStream(buffer)
@@ -283,20 +290,20 @@ export async function getAudioDuration (buffer: Buffer | string) {
     return metadata.format.duration;
 }
 export const toReadable = (buffer: Buffer) => {
-    const readable = new Readable({ read: () => {} })
+    const readable = new Readable({ read: () => { } })
     readable.push(buffer)
     readable.push(null)
     return readable
 }
 export const getStream = async (item: WAMediaUpload) => {
-    if(Buffer.isBuffer(item)) return { stream: toReadable(item), type: 'buffer' }
-    if(item.url.toString().startsWith('http://') || item.url.toString().startsWith('https://')) {
+    if (Buffer.isBuffer(item)) return { stream: toReadable(item), type: 'buffer' }
+    if (item.url.toString().startsWith('http://') || item.url.toString().startsWith('https://')) {
         return { stream: await getGotStream(item.url), type: 'remote' }
     }
     return { stream: createReadStream(item.url), type: 'file' }
 }
 /** generates a thumbnail for a given media, if required */
-export async function generateThumbnail(file: string, mediaType: MessageType, info: MessageOptions) {
+export async function generateThumbnail(file: string, mediaType: MessageType, info: MessageOptions, ffmpegPath: string = 'ffmpeg') {
     if ('thumbnail' in info) {
         // don't do anything if the thumbnail is already provided, or is null
         if (mediaType === MessageType.audio) {
@@ -308,7 +315,7 @@ export async function generateThumbnail(file: string, mediaType: MessageType, in
     } else if (mediaType === MessageType.video) {
         const imgFilename = join(tmpdir(), generateMessageID() + '.jpg')
         try {
-            await extractVideoThumb(file, imgFilename, '00:00:00', { width: 48, height: 48 })
+            await extractVideoThumb(file, imgFilename, '00:00:00', { width: 48, height: 48 }, ffmpegPath)
             const buff = await fs.readFile(imgFilename)
             info.thumbnail = buff.toString('base64')
             await fs.unlink(imgFilename)
@@ -317,14 +324,14 @@ export async function generateThumbnail(file: string, mediaType: MessageType, in
         }
     }
 }
-export const getGotStream = async(url: string | URL, options: Options & { isStream?: true } = {}) => {
+export const getGotStream = async (url: string | URL, options: Options & { isStream?: true } = {}) => {
     const fetched = got.stream(url, { ...options, isStream: true })
     await new Promise((resolve, reject) => {
         fetched.once('error', reject)
-        fetched.once('response', ({statusCode: status}: Response) => {
+        fetched.once('response', ({ statusCode: status }: Response) => {
             if (status >= 400) {
-                reject(new BaileysError (
-                    'Invalid code (' + status + ') returned', 
+                reject(new BaileysError(
+                    'Invalid code (' + status + ') returned',
                     { status }
                 ))
             } else {
@@ -333,24 +340,24 @@ export const getGotStream = async(url: string | URL, options: Options & { isStre
         })
     })
     return fetched
-} 
-export const encryptedStream = async(media: WAMediaUpload, mediaType: MessageType, saveOriginalFileIfRequired = true) => {
+}
+export const encryptedStream = async (media: WAMediaUpload, mediaType: MessageType, saveOriginalFileIfRequired = true) => {
     const { stream, type } = await getStream(media)
 
     const mediaKey = randomBytes(32)
-    const {cipherKey, iv, macKey} = getMediaKeys(mediaKey, mediaType)
+    const { cipherKey, iv, macKey } = getMediaKeys(mediaKey, mediaType)
     // random name
     const encBodyPath = join(tmpdir(), mediaType + generateMessageID() + '.enc')
     const encWriteStream = createWriteStream(encBodyPath)
     let bodyPath: string
     let writeStream: WriteStream
-    if(type === 'file') {
+    if (type === 'file') {
         bodyPath = (media as any).url
-    } else if(saveOriginalFileIfRequired) {
+    } else if (saveOriginalFileIfRequired) {
         bodyPath = join(tmpdir(), mediaType + generateMessageID())
         writeStream = createWriteStream(bodyPath)
     }
-    
+
     let fileLength = 0
     const aes = Crypto.createCipheriv('aes-256-cbc', cipherKey, iv)
     let hmac = Crypto.createHmac('sha256', macKey).update(iv)
@@ -362,7 +369,7 @@ export const encryptedStream = async(media: WAMediaUpload, mediaType: MessageTyp
         hmac = hmac.update(buff)
         encWriteStream.write(buff)
     }
-    for await(const data of stream) {
+    for await (const data of stream) {
         fileLength += data.length
         sha256Plain = sha256Plain.update(data)
         writeStream && writeStream.write(data)
@@ -372,10 +379,10 @@ export const encryptedStream = async(media: WAMediaUpload, mediaType: MessageTyp
 
     const mac = hmac.digest().slice(0, 10)
     sha256Enc = sha256Enc.update(mac)
-    
+
     const fileSha256 = sha256Plain.digest()
     const fileEncSha256 = sha256Enc.digest()
-    
+
     encWriteStream.write(mac)
     encWriteStream.close()
 
@@ -410,7 +417,7 @@ export async function decryptMediaMessageBuffer(message: WAMessageContent): Prom
     }
     if (type === MessageType.location || type === MessageType.liveLocation) {
         const buffer = Buffer.from(message[type].jpegThumbnail)
-        const readable = new Readable({ read: () => {} })
+        const readable = new Readable({ read: () => { } })
         readable.push(buffer)
         readable.push(null)
         return readable
@@ -418,7 +425,7 @@ export async function decryptMediaMessageBuffer(message: WAMessageContent): Prom
     let messageContent: WAGenericMediaMessage
     if (message.productMessage) {
         const product = message.productMessage.product?.productImage
-        if (!product) throw new BaileysError ('product has no image', message)
+        if (!product) throw new BaileysError('product has no image', message)
         messageContent = product
     } else {
         messageContent = message[type]
@@ -442,15 +449,15 @@ export async function decryptMediaMessageBuffer(message: WAMessageContent): Prom
             try {
                 this.push(aes.update(data))
                 callback()
-            } catch(error) {
+            } catch (error) {
                 callback(error)
-            }  
+            }
         },
         final(callback) {
             try {
                 this.push(aes.final())
                 callback()
-            } catch(error) {
+            } catch (error) {
                 callback(error)
             }
         },
@@ -465,11 +472,11 @@ export function extensionForMediaMessage(message: WAMessageContent) {
         extension = '.jpeg'
     } else {
         const messageContent = message[type] as
-                                | WAMessageProto.VideoMessage
-                                | WAMessageProto.ImageMessage
-                                | WAMessageProto.AudioMessage
-                                | WAMessageProto.DocumentMessage
-        extension = getExtension (messageContent.mimetype)
+            | WAMessageProto.VideoMessage
+            | WAMessageProto.ImageMessage
+            | WAMessageProto.AudioMessage
+            | WAMessageProto.DocumentMessage
+        extension = getExtension(messageContent.mimetype)
     }
     return extension
 }
