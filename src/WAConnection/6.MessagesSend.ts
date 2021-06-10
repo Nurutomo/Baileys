@@ -13,7 +13,7 @@ import {
     WATextMessage,
     WAMessageContent, WAMetric, WAFlag, WAMessage, BaileysError, WA_MESSAGE_STATUS_TYPE, WAMessageProto, MediaConnInfo, MessageTypeProto, URL_REGEX, WAUrlInfo, WA_DEFAULT_EPHEMERAL, WAMediaUpload
 } from './Constants'
-import { isGroupID, generateMessageID, extensionForMediaMessage, whatsappID, unixTimestampSeconds, getAudioDuration, newMessagesDB, encryptedStream, decryptMediaMessageBuffer, generateThumbnail, extractMediaMetadata  } from './Utils'
+import { isGroupID, generateMessageID, extensionForMediaMessage, whatsappID, unixTimestampSeconds, getAudioDuration, newMessagesDB, encryptedStream, decryptMediaMessageBuffer, generateThumbnail, extractMediaMetadata, randomBytes  } from './Utils'
 import { Mutex } from './Mutex'
 import { Readable } from 'stream'
 
@@ -247,7 +247,8 @@ export class WAConnection extends Base {
                     fileName: options.filename || 'file',
                     gifPlayback: isGIF || undefined,
                     caption: options.caption,
-                    ptt: options.ptt
+                    ptt: options.ptt,
+                    streamingSidecar: mediaType === MessageType.audio || mediaType === MessageType.video ? randomBytes(30) : undefined,
                 }
             )
         }
