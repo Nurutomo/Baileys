@@ -227,7 +227,7 @@ export class WAConnection extends Base {
         await Promise.all(
             [
                 fs.unlink(encBodyPath),
-                didSaveToTmpPath && bodyPath && fs.unlink(bodyPath)
+                didSaveToTmpPath && bodyPath && fs.unlink(bodyPath).catch(() => false)
             ]
             .filter(Boolean)
         )

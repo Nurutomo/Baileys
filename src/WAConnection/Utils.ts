@@ -243,7 +243,7 @@ const extractVideoThumb = async (
             '-y',
             '-ss', time,
             '-i', path,
-            '-s', `${size.width}x${size.height}`,
+            '-vf', `scale=${size.width}:${size.height}`,
             '-vframes', '1',
             '-f', 'image2',
             destPath
@@ -315,7 +315,7 @@ export async function generateThumbnail(file: string, mediaType: MessageType, in
     } else if (mediaType === MessageType.video) {
         const imgFilename = join(tmpdir(), generateMessageID() + '.jpg')
         try {
-            await extractVideoThumb(file, imgFilename, '00:00:00', { width: 48, height: 48 }, ffmpegPath)
+            await extractVideoThumb(file, imgFilename, '00:00:00', { width: 48, height: -2 }, ffmpegPath)
             const buff = await fs.readFile(imgFilename)
             info.thumbnail = buff.toString('base64')
             await fs.unlink(imgFilename)
