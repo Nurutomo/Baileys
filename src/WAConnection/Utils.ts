@@ -14,6 +14,8 @@ import KeyedDB from '@adiwajshing/keyed-db'
 import got, { Options, Response } from 'got'
 import { join } from 'path'
 import { IAudioMetadata } from 'music-metadata'
+import * as isStream from 'is-stream'
+import * as isFileStream from 'is-file-stream'
 
 const platformMap = {
     'aix': 'AIX',
@@ -284,6 +286,8 @@ export const toReadable = (buffer: Buffer) => {
 }
 export const getStream = async (item: WAMediaUpload) => {
     if(Buffer.isBuffer(item)) return { stream: toReadable(item), type: 'buffer' }
+    if (isFileStream(item)) return { stream: item, type: 'file' }
+    if (isStream(item)) return { stream: item, type: 'remote' }
     if(item.url.toString().startsWith('http://') || item.url.toString().startsWith('https://')) {
         return { stream: await getGotStream(item.url), type: 'remote' }
     }
@@ -339,7 +343,7 @@ export const encryptedStream = async(media: WAMediaUpload, mediaType: MessageTyp
     let bodyPath: string
     let writeStream: WriteStream
     if(type === 'file') {
-        bodyPath = (media as any).url
+        bodyPath = (media as any).url || (media as any).path.toString()
     } else if(saveOriginalFileIfRequired) {
         bodyPath = join(tmpdir(), mediaType + generateMessageID())
         writeStream = createWriteStream(bodyPath)
