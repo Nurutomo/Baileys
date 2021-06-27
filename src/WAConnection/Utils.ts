@@ -14,8 +14,8 @@ import KeyedDB from '@adiwajshing/keyed-db'
 import got, { Options, Response } from 'got'
 import { join } from 'path'
 import { IAudioMetadata } from 'music-metadata'
-import * as isStream from 'is-stream'
-import * as isFileStream from 'is-file-stream'
+import isStream from 'is-stream'
+import isFileStream from 'is-file-stream'
 
 const platformMap = {
     'aix': 'AIX',
@@ -286,8 +286,8 @@ export const toReadable = (buffer: Buffer) => {
 }
 export const getStream = async (item: WAMediaUpload) => {
     if(Buffer.isBuffer(item)) return { stream: toReadable(item), type: 'buffer' }
-    if (isFileStream(item)) return { stream: item, type: 'file' }
-    if (isStream(item)) return { stream: item, type: 'remote' }
+    if (isFileStream(item)) return { stream: item as Readable, type: 'file' }
+    if (isStream(item)) return { stream: item as Readable, type: 'remote' }
     if(item.url.toString().startsWith('http://') || item.url.toString().startsWith('https://')) {
         return { stream: await getGotStream(item.url), type: 'remote' }
     }

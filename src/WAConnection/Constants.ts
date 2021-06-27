@@ -3,6 +3,7 @@ import { proto } from '../../WAMessage/WAMessage'
 import { Agent } from 'https'
 import KeyedDB from '@adiwajshing/keyed-db'
 import { URL } from 'url'
+import { Readable } from 'stream'
 
 export const WS_URL = 'wss://web.whatsapp.com/ws'
 export const DEFAULT_ORIGIN = 'https://web.whatsapp.com'
@@ -101,7 +102,7 @@ export interface WAQuery {
     maxRetries?: number
 }
 
-export type WAMediaUpload = Buffer | { url: URL | string }
+export type WAMediaUpload = Readable | Buffer | { url: URL | string }
 
 export enum ReconnectMode {
     /** does not reconnect */
