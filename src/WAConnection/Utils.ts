@@ -284,7 +284,7 @@ export const toReadable = (buffer: Buffer) => {
 }
 export const getStream = async (item: WAMediaUpload) => {
     if(Buffer.isBuffer(item)) return { stream: toReadable(item), type: 'buffer' }
-    if (item instanceof Readable) return { stream: item, type: 'stream' }
+    if(item instanceof Readable) return { stream: item, type: 'stream' }
     if(item.url.toString().startsWith('http://') || item.url.toString().startsWith('https://')) {
         return { stream: await getGotStream(item.url), type: 'remote' }
     }
@@ -340,7 +340,7 @@ export const encryptedStream = async(media: WAMediaUpload, mediaType: MessageTyp
     let bodyPath: string
     let writeStream: WriteStream
     if(type === 'file') {
-        bodyPath = (media as any).url || (media as any).path.toString()
+        bodyPath = (media as any).url
     } else if(saveOriginalFileIfRequired) {
         bodyPath = join(tmpdir(), mediaType + generateMessageID())
         writeStream = createWriteStream(bodyPath)
