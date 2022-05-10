@@ -19,6 +19,7 @@
   "scripts": {
     "test": "jest",
     "prepare": "tsc",
+    "prepack": "tsc",
     "build:all": "tsc && typedoc",
     "build:docs": "typedoc",
     "build:tsc": "tsc",
